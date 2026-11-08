@@ -1,0 +1,25 @@
+# API keys / secrets
+keys.cfg
+.env
+*.key
+config.local.yaml
+
+# Third-party agent code and datasets (clone separately)
+SWE-agent/
+nyuctf_agents/
+NYU_CTF_Bench/
+LLM_CTF_Database/
+ghidra_*/
+
+# Challenge files and raw outputs
+challenges/
+trajectories/
+logs/
+runs/**/raw/
+*.traj
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
