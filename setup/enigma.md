@@ -55,11 +55,32 @@ python run.py \
 | --- | --- | --- |
 | clone + pip install | 완료 | v0.7 브랜치, venv 환경 (2026-11-08) |
 | docker 이미지 / ctfnet | 완료 | sweagent/enigma:latest, ctfnet 네트워크 생성 |
-| keys.cfg 설정 | 보류 | 실험 모델 확정 후 설정 |
-| 최신 모델 등록 | 예정 | models.py에 최신 Claude 모델과 단가 추가 필요 |
-| 스모크 테스트 | 예정 | 모델 등록 후 leaked_flag 문제로 실행 |
+| 라이브러리 버전 고정 | 완료 | `modal<1.0`, `anthropic[bedrock]==0.49.0` (2026-11-22, 아래 1·2번) |
+| 최신 모델 등록 | 완료 | `claude-haiku-4-5-20251001`, `claude-sonnet-4-6` 추가 + `top_p` 미전송 수정. 수정 내용은 `setup/patches/enigma_v0.7.patch` |
+| keys.cfg 설정 | 완료 | SWE-agent 폴더에만 둠 (팀 레포에 커밋하지 않음) |
+| 스모크 테스트 | 성공 | leaked_flag, `ctf_misc.yaml` 설정, $0.08. 결과는 `runs/smoke/enigma.md` |
+
+## 재현 방법 (설치 이후)
+
+```bash
+cd SWE-agent && source .venv/bin/activate
+pip install "modal<1.0" "anthropic[bedrock]==0.49.0"
+git apply ../ctf-agent-comparison/setup/patches/enigma_v0.7.patch
+```
+
+실행할 때는 반드시 카테고리별 설정(`config/ctf/ctf_<카테고리>.yaml`)을 쓴다. 기본 설정(`config/default_ctf.yaml`)에는 EnIGMA의 핵심 기능인 요약기와 풀이 예시가 없다.
+
+```bash
+python run.py --model_name claude-haiku-4-5-20251001 --ctf \
+  --image_name sweagent/enigma:latest \
+  --data_path <문제폴더>/challenge.json --repo_path <문제폴더>/ \
+  --config_file config/ctf/ctf_misc.yaml --per_instance_cost_limit 0.50
+```
 
 ## 겪은 문제와 해결
 
-- 설치 과정에서 오류 없음.
-- 코드 분석 결과, v0.7은 Claude 3.5 Sonnet까지만 등록되어 있어 최신 모델 비교를 위해서는 모델 정보 추가 작업이 필요함 (다음 회차 진행).
+1. **`modal` 버전 충돌**: `swebench`(2.x)가 불러오는 `modal`이 최신 1.x로 설치되어 `modal.Mount`가 없다는 오류(`AttributeError`) 발생. `pip install "modal<1.0"`으로 해결. 실행할 때 나오는 `DeprecationError` 경고는 무시해도 됨.
+2. **`anthropic` SDK 버전 충돌**: 최신 SDK(2.x)에서 `AI_PROMPT`, `HUMAN_PROMPT`가 삭제되어 `ImportError` 발생. `anthropic[bedrock]==0.49.0`으로 고정해 해결. 이 버전으로도 최신 모델 호출은 정상 동작함.
+3. **최신 모델 미등록 + API 호환성**: `sweagent/agent/models.py`의 모델 목록이 Claude 3.5 Sonnet까지만 있음. 최신 모델과 토큰 단가를 추가했고, 최신 Claude 모델은 `temperature`와 `top_p`를 함께 보내면 오류가 날 수 있어 Claude 3 계열이 아닐 때는 `top_p`를 보내지 않도록 수정함.
+4. **API 키가 빈 값으로 저장됨**: zsh에서는 `read -p`가 bash와 다르게 동작해 키가 저장되지 않았고, 인증 오류(`Could not resolve authentication method`)가 남. `keys.cfg`를 다시 작성해 해결. 키 길이를 확인하는 명령으로 검증할 것.
+5. **기본 설정으로 실행하면 비용이 폭증**: `default_ctf.yaml`로 실행했을 때 에이전트가 `find /opt -type f`로 38만 자를 출력했고, 이 출력이 이후 호출마다 함께 전송되어 비용 한도를 넘김. 카테고리별 설정(`ctf_misc.yaml`)은 긴 출력을 요약하는 LM Summarizer가 있어 같은 문제를 $0.08로 풀었음. 자세한 비교는 `runs/smoke/enigma.md`.

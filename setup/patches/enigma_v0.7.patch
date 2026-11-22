@@ -1,0 +1,32 @@
+diff --git a/sweagent/agent/models.py b/sweagent/agent/models.py
+index d0f5765e..547aca61 100644
+--- a/sweagent/agent/models.py
++++ b/sweagent/agent/models.py
+@@ -451,6 +451,18 @@ class AnthropicModel(BaseModel):
+             "cost_per_input_token": 2.5e-07,
+             "cost_per_output_token": 1.25e-06,
+         },
++        "claude-haiku-4-5-20251001": {
++            "max_context": 200_000,
++            "max_tokens": 8192,
++            "cost_per_input_token": 1e-06,
++            "cost_per_output_token": 5e-06,
++        },
++        "claude-sonnet-4-6": {
++            "max_context": 200_000,
++            "max_tokens": 8192,
++            "cost_per_input_token": 3e-06,
++            "cost_per_output_token": 1.5e-05,
++        },
+     }
+ 
+     SHORTCUTS = {
+@@ -675,7 +687,7 @@ def anthropic_query(model: AnthropicModel | BedrockModel, history: list[dict[str
+         max_tokens=model.model_metadata["max_tokens"],
+         model=model.api_model,
+         temperature=model.args.temperature,
+-        top_p=model.args.top_p,
++        **({"top_p": model.args.top_p} if model.api_model.startswith("claude-3") else {}),
+         system=system_message,
+     )
+ 
