@@ -90,3 +90,28 @@ ANTHROPIC=<API 키>
 4. **baseline 비용 계산 코드가 최신 SDK와 안 맞음**: `anthropic_backend.py`의 `send()`가 `self.client.count_tokens()`를 호출하는데, 설치된 anthropic 2.12.0에는 이 함수가 없어서 첫 응답 직후 죽는다. API 응답의 `response.usage`(input/output 토큰)로 비용을 계산하도록 고쳤다. 원래 코드는 마지막 메시지만 세서 비용이 실제보다 적게 나왔는데, 수정 후에는 매 호출의 전체 프롬프트 토큰이 반영된다. 로그 JSON에 `input_tokens`, `output_tokens`도 남기게 했다 (`conversation.py`).
 5. **baseline은 `keys.cfg`가 없으면 import 단계에서 죽는다**: `parse_keys()`가 `FileNotFoundError`가 아니라 `FileExistsError`를 잡고 있어서다. 환경변수로만 키를 줄 때도 빈 `keys.cfg`는 있어야 한다.
 6. **baseline 응답 길이 고정**: `anthropic_backend.py`의 `_call_model()`이 `max_tokens=1024`로 고정돼 있어서 `model_info.json`의 `max_tokens`(8192)는 실제로 쓰이지 않는다. D-CIPHER는 설정 파일의 `max_tokens: 4096`을 쓴다. 본 실험 전에 맞출지 팀에서 정해야 한다.
+
+## 인우 PC(WSL) 추가 작업 (2026-11-22)
+
+본 실험을 돌릴 x86 PC(WSL2, Python 3.12)에 설치하면서 추가로 고친 것. 효관 패치(`setup/patches/nyuctf_agents.patch`)를 먼저 적용한 뒤 아래를 적용했다. 전체 수정 내용은 `setup/patches/nyuctf_agents_wsl.patch`에 있다.
+
+| 문제 | 원인 | 해결 |
+| --- | --- | --- |
+| D-CIPHER `Messages.create() got an unexpected keyword argument 'temperature'` | anthropic SDK 1.0 이상에서 `temperature` 인자가 빠짐 | `pip install "anthropic==0.125.0"` (`temperature`와 `thinking`·`output_config`를 모두 지원하는 마지막 버전) |
+| baseline `os.getlogin()` → `FileNotFoundError` | WSL에서는 `os.getlogin()`이 동작하지 않음 | `run_baseline.py`에서 `getpass.getuser()`로 교체 |
+| baseline `Subscripted generics cannot be used with class and instance checks` | SDK 0.125.0에서 `ContentBlock`이 여러 타입을 묶은 이름이라 `isinstance`에 쓸 수 없음 | `anthropic_backend.py`의 import를 `TextBlock`으로 교체 |
+| baseline `'Status' object has no attribute 'error_message'` | 원본 코드 버그. 에이전트가 없는 도구를 부르면 멈춤 | `conversation.py`에서 `status.print`로 교체 |
+| baseline 기본 `max_rounds: 3` | 기본값이 너무 작음 | 스모크 테스트는 30으로 설정 |
+
+설치 순서 요약 (nyuctf_agents 폴더, venv 활성화 후):
+
+```bash
+./setup_dcipher.sh
+pip install "together<2" "anthropic==0.125.0"
+git apply <팀레포>/setup/patches/nyuctf_agents_wsl.patch   # 효관 패치 + 위 수정 포함
+./setup_baseline.sh
+pip install "ToolDefGenerator @ git+https://github.com/moyix/ToolDefGenerator@main" jinja2 bs4 lxml ruamel.yaml
+python3 -m nyuctf.download
+```
+
+스모크 테스트 결과는 `runs/smoke/dcipher.md`, `runs/smoke/baseline.md`.

@@ -1,0 +1,149 @@
+diff --git a/configs/baseline/base_config.yaml b/configs/baseline/base_config.yaml
+index c473f08..36d6c9b 100644
+--- a/configs/baseline/base_config.yaml
++++ b/configs/baseline/base_config.yaml
+@@ -5,10 +5,10 @@ experiment:
+ 
+ 
+ parameter:
+-  max_rounds: 3
+-  max_cost: 3
+-  backend: "openai"
+-  model: "gpt-4o-2024-05-13"
++  max_rounds: 30
++  max_cost: 0.5
++  backend: "anthropic"
++  model: "claude-haiku-4-5-20251001"
+ 
+ prompts:
+   system: |
+diff --git a/configs/dcipher/base_planner_executor.yaml b/configs/dcipher/base_planner_executor.yaml
+index 1ec231d..6b4cb7b 100644
+--- a/configs/dcipher/base_planner_executor.yaml
++++ b/configs/dcipher/base_planner_executor.yaml
+@@ -4,7 +4,7 @@ experiment:
+ 
+ planner:
+   max_rounds: 30
+-  model: gpt-4o-2024-11-20
++  model: claude-haiku-4-5-20251001
+   temperature: 1.0
+   top_p: 1.0
+   max_tokens: 4096
+@@ -16,7 +16,7 @@ planner:
+     - delegate
+ executor:
+   max_rounds: 100
+-  model: gpt-4o-2024-11-20
++  model: claude-haiku-4-5-20251001
+   temperature: 1.0
+   top_p: 1.0
+   max_tokens: 4096
+@@ -30,7 +30,7 @@ executor:
+     - create_file
+ autoprompter:
+   max_rounds: 5
+-  model: gpt-4o-2024-11-20
++  model: claude-haiku-4-5-20251001
+   temperature: 1.0
+   max_tokens: 4096
+   prompt: prompts/autoprompt_prompt.yaml
+diff --git a/nyuctf_baseline/backends/anthropic_backend.py b/nyuctf_baseline/backends/anthropic_backend.py
+index af89c88..fdb1138 100644
+--- a/nyuctf_baseline/backends/anthropic_backend.py
++++ b/nyuctf_baseline/backends/anthropic_backend.py
+@@ -2,7 +2,7 @@ from argparse import Namespace
+ from anthropic import Anthropic, RateLimitError
+ from .utils import *
+ import os
+-from anthropic.types.content_block import ContentBlock as AnthropicMessage
++from anthropic.types import TextBlock as AnthropicMessage
+ from .vllm_backend import VLLMBackend
+ from ..tools import Tool, ToolCall, ToolResult
+ from ..prompts.prompts import PromptManager
+@@ -18,6 +18,9 @@ class AnthropicBackend(VLLMBackend):
+         super().__init__(system_message, hint_message, tools, prompt_manager, model=model, api_key=api_key, args=args)
+         self.in_price = MODEL_INFO[self.NAME][self.model].get("cost_per_input_token", 0)
+         self.out_price = MODEL_INFO[self.NAME][self.model].get("cost_per_output_token", 0)
++        self.last_usage = None
++        self.total_input_tokens = 0
++        self.total_output_tokens = 0
+ 
+     def client_setup(self):
+         if self.api_key:
+@@ -54,9 +57,12 @@ class AnthropicBackend(VLLMBackend):
+         else:
+             message = ""
+         _, content = self.call_model()
+-        # TODO take into account the full prompt and not just this message
+-        in_token = self.client.count_tokens(message)
+-        out_token = self.client.count_tokens(content)
++        # Client.count_tokens() was removed from the anthropic SDK; use the
++        # API-reported usage, which also covers the full prompt (not just this message).
++        in_token = self.last_usage.input_tokens
++        out_token = self.last_usage.output_tokens
++        self.total_input_tokens += in_token
++        self.total_output_tokens += out_token
+         cost = in_token * self.in_price + out_token * self.out_price
+         return content, self.last_tool_calls, cost
+     
+@@ -74,6 +80,7 @@ class AnthropicBackend(VLLMBackend):
+     def call_model_internal(self, start_seqs, stop_seqs):
+         start_seqs, stop_seqs = self.formatter.get_delimiters()
+         response = self._call_model(stop_seqs)
++        self.last_usage = response.usage
+         if response.stop_reason == "stop_sequence":
+             response.content[0].text += response.stop_sequence
+ 
+diff --git a/nyuctf_baseline/backends/model_info.json b/nyuctf_baseline/backends/model_info.json
+index 1bbdb2f..28af3dc 100644
+--- a/nyuctf_baseline/backends/model_info.json
++++ b/nyuctf_baseline/backends/model_info.json
+@@ -55,6 +55,12 @@
+             "max_tokens": 4096,
+             "cost_per_input_token": 2.5e-07,
+             "cost_per_output_token": 1.25e-06
++        },
++        "claude-haiku-4-5-20251001": {
++            "max_context": 200000,
++            "max_tokens": 8192,
++            "cost_per_input_token": 1e-06,
++            "cost_per_output_token": 5e-06
+         }
+     },
+     "vllm": {
+diff --git a/nyuctf_baseline/conversation.py b/nyuctf_baseline/conversation.py
+index a4ac0f6..9b37351 100644
+--- a/nyuctf_baseline/conversation.py
++++ b/nyuctf_baseline/conversation.py
+@@ -95,7 +95,7 @@ class CTFConversation:
+             # Tool lookup
+             tool = self.environment.available_tools.get(tool_call.name)
+             if not tool:
+-                status.error_message(f"Unknown tool {tool_call.name}")
++                status.print(f"Unknown tool {tool_call.name}")
+                 tool_results.append(tool_call.error(f"Unknown tool {tool_call.name}"))
+                 continue
+ 
+@@ -164,6 +164,8 @@ class CTFConversation:
+                 "solved": self.environment.solved,
+                 "rounds": self.rounds,
+                 "cost": self.cost,
++                "input_tokens": getattr(self.backend, "total_input_tokens", None),
++                "output_tokens": getattr(self.backend, "total_output_tokens", None),
+                 "debug_log": status.debug_log,
+                 # "challenge_server_output": self.chal.challenge_server_output,
+                 "start_time": self.start_time,
+diff --git a/run_baseline.py b/run_baseline.py
+index d3e4fb6..6be9217 100644
+--- a/run_baseline.py
++++ b/run_baseline.py
+@@ -54,7 +54,7 @@ def main():
+ 
+     # Log directory options
+     parser.add_argument("--skip-exist", action="store_true", help="Skip existing logs and experiments")
+-    parser.add_argument("-L", "--logdir", default=str(script_dir / "logs_baseline" / os.getlogin()), help="log directory to write the log")
++    parser.add_argument("-L", "--logdir", default=str(script_dir / "logs_baseline" / __import__("getpass").getuser()), help="log directory to write the log")
+     parser.add_argument("-n", "--name", help="Experiment name (creates subdir in logdir)")
+     parser.add_argument("-i", "--index", help="Round index of the experiment (creates subdir in logdir)")
+ 
