@@ -9,6 +9,7 @@
 | LLM | 본 실험 모델 미정 (후보 `claude-sonnet-4-6`) | 스모크 테스트는 `claude-haiku-4-5-20251001`로 통일 |
 | 에이전트 설정 | 각 에이전트의 카테고리별 기본 설정 | EnIGMA `config/ctf/ctf_<카테고리>.yaml`, D-CIPHER `configs/dcipher/<카테고리>_planner_executor.yaml`(자동 선택) |
 | 응답 길이 상한 (max_tokens) | 4096 (제안, 팀 합의 필요) | 현재 baseline 1024 고정, D-CIPHER 4096, EnIGMA 8192 |
+| 최대 라운드 | 미정 (baseline 기본값 3은 너무 작음) | 스모크 테스트 baseline은 30 |
 | 문제당 비용 상한 | $1.00 (잠정) | EnIGMA `--per_instance_cost_limit`, D-CIPHER `--max-cost`, baseline `base_config.yaml`의 `max_cost` |
 | 문제당 반복 실행 | 3회 (잠정) | 결과 편차 대비 |
 | 문제셋 | `problems.md` 참고 | 27문제 확정 (스모크 테스트용 1문제 별도) |
@@ -18,6 +19,8 @@
 
 - 비용 검사는 모델 호출이 끝난 뒤에 이루어지므로, 실제 비용이 상한을 조금 넘을 수 있다. 결과에는 실제 비용을 기록한다.
 - 설정 하나로 결과와 비용이 크게 달라진다 (`runs/smoke/enigma.md` 참고). 실행 명령과 설정 파일을 매번 기록한다.
+- **성공 판정은 "에이전트가 제출한 플래그가 정답과 일치"로 통일한다.** D-CIPHER는 출력 어디에든 플래그가 보이면 자동으로 성공 처리하므로(`runs/smoke/dcipher.md`), 본 실험 전에 이 기능을 끈다.
+- 스모크 테스트는 평가 문제셋과 겹치지 않는 development split 문제(`2016q-for-kill`)로 한다. 문제 설명에 플래그가 있는 `leaked_flag`는 D-CIPHER에서 무효이므로 쓰지 않는다.
 
 ## 기록 항목
 
@@ -49,3 +52,4 @@
 
 - 2026-11-08: 초안 작성
 - 2026-11-22: 카테고리별 설정 사용, 실행 환경(x86 PC), max_tokens 통일 제안, 결과 기록 양식(`runs/results.csv`) 추가
+- 2026-11-22: 성공 판정 통일(제출 기준), 스모크 테스트 문제 변경, 최대 라운드 항목 추가
