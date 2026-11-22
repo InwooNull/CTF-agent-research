@@ -6,15 +6,22 @@
 
 | 항목 | 값 | 비고 |
 | --- | --- | --- |
-| LLM | 미정 (팀 합의 후 확정) | 세 에이전트 모두 같은 모델 사용 |
-| 문제당 비용 상한 | $1.00 (잠정) | EnIGMA `--per_instance_cost_limit`, D-CIPHER `max_cost`, baseline `max_cost`로 통일 |
+| LLM | 본 실험 모델 미정 (후보 `claude-sonnet-4-6`) | 스모크 테스트는 `claude-haiku-4-5-20251001`로 통일 |
+| 에이전트 설정 | 각 에이전트의 카테고리별 기본 설정 | EnIGMA `config/ctf/ctf_<카테고리>.yaml`, D-CIPHER `configs/dcipher/<카테고리>_planner_executor.yaml`(자동 선택) |
+| 응답 길이 상한 (max_tokens) | 4096 (제안, 팀 합의 필요) | 현재 baseline 1024 고정, D-CIPHER 4096, EnIGMA 8192 |
+| 문제당 비용 상한 | $1.00 (잠정) | EnIGMA `--per_instance_cost_limit`, D-CIPHER `--max-cost`, baseline `base_config.yaml`의 `max_cost` |
 | 문제당 반복 실행 | 3회 (잠정) | 결과 편차 대비 |
-| 문제셋 | `problems.md` 참고 | 카테고리별 균형, 약 20~30문제 |
-| 실행 환경 | WSL2 + Docker | 같은 PC에서 실행 |
+| 문제셋 | `problems.md` 참고 | 27문제 확정 (스모크 테스트용 1문제 별도) |
+| 실행 환경 | 송인우 PC (x86, WSL2 + Docker) | 세 에이전트 모두 같은 PC에서 실행. arm64 맥은 에뮬레이션으로 속도와 디버거 동작이 달라 제외 |
+
+## 주의 사항
+
+- 비용 검사는 모델 호출이 끝난 뒤에 이루어지므로, 실제 비용이 상한을 조금 넘을 수 있다. 결과에는 실제 비용을 기록한다.
+- 설정 하나로 결과와 비용이 크게 달라진다 (`runs/smoke/enigma.md` 참고). 실행 명령과 설정 파일을 매번 기록한다.
 
 ## 기록 항목
 
-각 실행마다 아래를 `runs/`에 요약한다.
+각 실행마다 아래를 `runs/results.csv`에 한 줄씩 기록한다.
 
 - 에이전트, 문제, 회차, 사용 모델
 - 결과: 성공 / 실패
@@ -41,3 +48,4 @@
 ## 변경 기록
 
 - 2026-11-08: 초안 작성
+- 2026-11-22: 카테고리별 설정 사용, 실행 환경(x86 PC), max_tokens 통일 제안, 결과 기록 양식(`runs/results.csv`) 추가
