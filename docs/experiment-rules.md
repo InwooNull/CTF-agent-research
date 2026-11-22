@@ -6,9 +6,9 @@
 
 | 항목 | 값 | 비고 |
 | --- | --- | --- |
-| LLM | 본 실험 모델 미정 (후보 `claude-sonnet-4-6`) | 스모크 테스트는 `claude-haiku-4-5-20251001`로 통일 |
+| LLM | `claude-haiku-4-5-20251001` (확정) | 예산과 세 에이전트 동작 검증 기준으로 선정. 여유가 있으면 일부 문제를 `claude-sonnet-4-6`으로 추가 실험 |
 | 에이전트 설정 | 각 에이전트의 카테고리별 기본 설정 | EnIGMA `config/ctf/ctf_<카테고리>.yaml`, D-CIPHER `configs/dcipher/<카테고리>_planner_executor.yaml`(자동 선택) |
-| 응답 길이 상한 (max_tokens) | 4096 (제안, 팀 합의 필요) | 현재 baseline 1024 고정, D-CIPHER 4096, EnIGMA 8192 |
+| 응답 길이 상한 (max_tokens) | 4096 (확정) | 본 실험 전 baseline(코드에 1024 고정)과 EnIGMA(8192)를 4096으로 수정 |
 | 최대 라운드 | 미정 (baseline 기본값 3은 너무 작음) | 스모크 테스트 baseline은 30 |
 | 문제당 비용 상한 | $1.00 (잠정) | EnIGMA `--per_instance_cost_limit`, D-CIPHER `--max-cost`, baseline `base_config.yaml`의 `max_cost` |
 | 문제당 반복 실행 | 3회 (잠정) | 결과 편차 대비 |
@@ -52,4 +52,5 @@
 
 - 2026-11-08: 초안 작성
 - 2026-11-22: 카테고리별 설정 사용, 실행 환경(x86 PC), max_tokens 통일 제안, 결과 기록 양식(`runs/results.csv`) 추가
+- 2026-11-22: 본 실험 모델 Haiku 4.5, max_tokens 4096 확정
 - 2026-11-22: 성공 판정 통일(제출 기준), 스모크 테스트 문제 변경, 최대 라운드 항목 추가
